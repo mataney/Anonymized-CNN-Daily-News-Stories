@@ -6,13 +6,13 @@ First we need to find the mapping between questions data and stories, run the fo
 ```
 python create_anonymized_stories.py 
           --mode map_qd 
-          --questions_path /home/matan/Documents/research/datasets/cnn-question-from-original-site/cnn.tgz
+          --questions_path /path/to/questions/cnn.tgz
 ```
 
 After writing to file the mapping run this:
 ```
 python create_anonymized_stories.py 
           --mode anonymize
-          --stories_path /home/matan/Documents/research/datasets/cnn-stories-from-original-site/cnn_stories.tgz 
-          --out_dir /home/matan/Documents/research/datasets/cnn-anonymized-stories-i-created
+          --stories_path /path/to/stories/cnn_stories.tgz 
+          --out_dir /path/to/new/anonymized-stories
 ```
