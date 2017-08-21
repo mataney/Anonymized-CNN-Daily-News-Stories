@@ -52,7 +52,7 @@ dm_single_close_quote = u'\u2019'
 dm_double_close_quote = u'\u201d'
 END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote, ")"] # acceptable ways to end a sentence
 
-StoryData = namedtuple('StoryData', 'hashed_url, article, abstract, entity_mapping, questions, dataset')
+StoryData = namedtuple('StoryData', 'hashed_url, article, abstract, anonymized_article, anonymized_abstract, entity_mapping, questions, dataset')
 
 def anonymize(stories_path, out_dir):
 	questions_data = read_pickle(questions_data_file)
@@ -89,10 +89,10 @@ def create_story_data(stories_file, file_path, questions_data):
 
 	f = stories_file.extractfile(file_path)
 	content = f.read().decode()
-	original_article, original_abstract = get_art_abs(content)
-	article = anonymize_story(original_article, entity_mapping)
-	abstract = anonymize_story(original_abstract, entity_mapping)
-	return StoryData(hashed_url, article, abstract, entity_mapping, questions, dataset)
+	article, abstract = get_art_abs(content)
+	anonymized_article = anonymize_story(article, entity_mapping)
+	anonymized_abstract = anonymize_story(abstract, entity_mapping)
+	return StoryData(hashed_url, article, abstract, anonymized_article, anonymized_abstract, entity_mapping, questions, dataset)
 
 def get_art_abs(story):
 	lines = story.split('\n')
