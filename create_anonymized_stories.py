@@ -6,18 +6,19 @@ QuestionData = namedtuple('QuestionData', 'hashed_url question_hash dataset enti
 
 ############# map_qd #############
 
-def map_questions_data(questions_path):
+def map_questions_data(all_questions_paths):
 	data = {}
-	questions_file = tarfile.open(questions_path)
+	for questions_path in all_questions_paths:
+		questions_file = tarfile.open(questions_path)
 
-	for i, file in enumerate(questions_file.getmembers()):
-		qd = create_question_data(questions_file, file)
-		if not qd: continue
-		hashed_url = qd.hashed_url
-		if not hashed_url in data: data[hashed_url] = {}
-		data[hashed_url][qd.question_hash] = qd._asdict()
-		if i%5000 == 0 and i!=0:
-			print("found "+str(i)+" questions")
+		for i, file in enumerate(questions_file.getmembers()):
+			qd = create_question_data(questions_file, file)
+			if not qd: continue
+			hashed_url = qd.hashed_url
+			if not hashed_url in data: data[hashed_url] = {}
+			data[hashed_url][qd.question_hash] = qd._asdict()
+			if i%5000 == 0 and i!=0:
+				print("found "+str(i)+" questions")
 
 	write_pickle(questions_data_file, data)
 	print("successfully wrote questions data.")
@@ -54,32 +55,39 @@ END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_dou
 
 StoryData = namedtuple('StoryData', 'hashed_url, article, abstract, anonymized_article, anonymized_abstract, entity_mapping, questions, dataset')
 
-def anonymize(stories_path, out_dir):
+def anonymize(all_stories_path, out_dir):
 	questions_data = read_pickle(questions_data_file)
 	data = {'training': [], 'validation': [], 'test': []}
 
-	stories_file = tarfile.open(stories_path)
-	i = 0
-	for file_path in stories_file.getmembers():
-		sd = create_story_data(stories_file, file_path, questions_data)
-		if not sd: continue
-		data[sd.dataset].append(sd._asdict())
-		if i%1000 == 0 and i!=0:
-			print("anonymized "+str(i)+" articles")
-		i+=1
+	for stories_path in all_stories_path:
+		stories_file = tarfile.open(stories_path)
+		i = 0
+		for file_path in stories_file.getmembers():
+			sd = create_story_data(stories_file, file_path, questions_data)
+			if not sd: continue
+			data[sd.dataset].append(sd._asdict())
+			if i%1000 == 0 and i!=0:
+				print("anonymized "+str(i)+" articles")
+			i+=1
 
-	anonymized_files = {'training': out_dir+'/anonymized_training.pkl', 'validation': out_dir+'/anonymized_validation.pkl', 'test': out_dir+'/anonymized_test.pkl' }
+	anonymized_files = {'training': 'train.txt', 'validation': 'val.txt', 'test': 'test.txt' }
 	for dataset, stories in data.items():
-		write_pickle(anonymized_files[dataset], stories)
+		with open(out_dir+'/src-'+anonymized_files[dataset], 'w') as src_file:
+			for story in stories:
+				src_file.write(story['article'] + '\n')
+		
+		with open(out_dir+'/tgt-'+anonymized_files[dataset], 'w') as tgt_file:
+			for story in stories:
+				tgt_file.write(story['abstract'] + '\n')
 		print("successfully wrote anonymized " + dataset + " dataset.")
 
-	os.remove(questions_data_file)
+	# os.remove(questions_data_file)
 
 def create_story_data(stories_file, file_path, questions_data):
 	if not file_path.name.endswith('story'): return
 	hashed_url = file_path.name.split('/')[3].split('.')[0]
 	if hashed_url not in questions_data:
-		print("counldn't find questions for " + hashed_url)
+		print("could't find questions for " + hashed_url)
 		return
 	qd = questions_data[hashed_url]
 	questions = list(qd.keys())
@@ -90,9 +98,9 @@ def create_story_data(stories_file, file_path, questions_data):
 	f = stories_file.extractfile(file_path)
 	content = f.read().decode()
 	article, abstract = get_art_abs(content)
-	anonymized_article = anonymize_story(article, entity_mapping)
-	anonymized_abstract = anonymize_story(abstract, entity_mapping)
-	return StoryData(hashed_url, article, abstract, anonymized_article, anonymized_abstract, entity_mapping, questions, dataset)
+	# anonymized_article = anonymize_story(article, entity_mapping)
+	# anonymized_abstract = anonymize_story(abstract, entity_mapping)
+	return StoryData(None, article, abstract, None, None, None, None, dataset)
 
 def get_art_abs(story):
 	lines = story.split('\n')
@@ -124,8 +132,7 @@ def fix_missing_period(line):
   if "@highlight" in line: return line
   if line=="": return line
   if line[-1] in END_TOKENS: return line
-  # print line[-1]
-  return line + " ."
+  return line + "."
 
 def anonymize_story(text, mapping):
 	for e_number, e_name in mapping.items():
@@ -153,14 +160,25 @@ def main():
 	parser.add_argument('--questions_path')
 	parser.add_argument('--stories_path')
 	parser.add_argument('--out_dir')
+	# harry = '/home/matan/Documents/research/datasets/cnn-question-from-original-site/cnn/cnn/questions/training/0f4111936102ddf59314386d5c051babdd7f71b5.question'
+	cnn_questions = '/home/matan/Documents/research/datasets/cnn-question-from-original-site/cnn.tgz'
+	dm_questions = '/home/matan/Documents/research/datasets/dailymail-question-from-original-site/dailymail.tgz'
+	all_questions_paths = [cnn_questions, dm_questions]
+
+	cnn_stories = '/home/matan/Documents/research/datasets/cnn-stories-from-original-site/cnn_stories.tgz'
+	dm_stories = '/home/matan/Documents/research/datasets/dailymail-stories-from-original-site/dailymail_stories.tgz'
+	all_stories_paths = [cnn_stories, dm_stories]
+	out_dir = '/home/matan/Documents/research/datasets/as-opennmt-expect'
+
 	args = parser.parse_args()
 	if args.mode == 'map_qd':
-		if not args.questions_path: print('--questions_path is required. Exiting.'); return
-		map_questions_data(args.questions_path)
+		# if not args.questions_path: print('--questions_path is required. Exiting.'); return
+		map_questions_data(all_questions_paths)
 	elif args.mode == 'anonymize':
-		if not args.stories_path: print('--stories_path is required. Exiting.'); return
-		if not args.out_dir: print('--out_dir is required. Exiting.'); return
-		anonymize(args.stories_path, args.out_dir)
+		# if not args.stories_path: print('--stories_path is required. Exiting.'); return
+		# if not args.out_dir: print('--out_dir is required. Exiting.'); return
+		anonymize(all_stories_paths, out_dir)
 
 if __name__ == '__main__':
   main()
+
